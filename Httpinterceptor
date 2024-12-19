@@ -1,0 +1,142 @@
+Yes, you can encapsulate the logic from Option 3 into a middleware-like structure that can be reused across your Node.js application. Here's how you can achieve this:
+
+
+---
+
+Custom Middleware for Intercepting HTTP/HTTPS Requests
+
+You can create a custom module that wraps the http and https modules and provides a middleware-like function to modify URLs and headers.
+
+
+---
+
+1. Create the Middleware Module
+
+File: requestInterceptor.js
+
+const http = require('http');
+const https = require('https');
+
+// Save original methods
+const originalHttpRequest = http.request;
+const originalHttpsRequest = https.request;
+
+function setupInterceptor({ modifyRequest }) {
+    // Intercept HTTP requests
+    http.request = (...args) => {
+        const [options] = args;
+
+        // Modify URL and headers using the provided function
+        modifyRequest(options);
+
+        return originalHttpRequest.apply(http, args);
+    };
+
+    // Intercept HTTPS requests
+    https.request = (...args) => {
+        const [options] = args;
+
+        // Modify URL and headers using the provided function
+        modifyRequest(options);
+
+        return originalHttpsRequest.apply(https, args);
+    };
+}
+
+module.exports = setupInterceptor;
+
+
+---
+
+2. Use the Middleware in Your Application
+
+File: server.js
+
+const express = require('express');
+const setupInterceptor = require('./requestInterceptor');
+
+const app = express();
+
+// Middleware to modify outgoing requests
+setupInterceptor({
+    modifyRequest: (options) => {
+        // Example: Modify the path
+        if (options.path.includes('/api/dev-only')) {
+            options.path = options.path.replace('/api/dev-only', '/api/mock');
+        }
+
+        // Example: Add or modify headers
+        options.headers = {
+            ...options.headers,
+            'Authorization': 'Bearer your-token',
+            'X-Custom-Header': 'CustomValue',
+        };
+
+        console.log(`Modified Request: ${options.method} ${options.protocol}//${options.hostname}${options.path}`);
+        console.log(`Modified Headers: ${JSON.stringify(options.headers)}`);
+    },
+});
+
+// Example API endpoint
+app.get('/test', (req, res) => {
+    const https = require('https');
+
+    // Example outbound request
+    https.get('https://example.com/api/dev-only', (response) => {
+        let data = '';
+        response.on('data', (chunk) => {
+            data += chunk;
+        });
+        response.on('end', () => {
+            res.send(data);
+        });
+    }).on('error', (err) => {
+        res.status(500).send(err.message);
+    });
+});
+
+// Start the server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
+
+
+---
+
+How It Works
+
+1. Encapsulation: The setupInterceptor function wraps the native http and https modules to intercept outbound requests globally.
+
+
+2. ModifyRequest Function: The modifyRequest function passed to the middleware contains the logic for modifying the URL and headers. This makes the interceptor reusable and customizable.
+
+
+3. Global Interception: Once setupInterceptor is called, all http and https requests in your Node.js application are intercepted and modified according to the logic in modifyRequest.
+
+
+
+
+---
+
+Advantages
+
+Reusable: Encapsulates interception logic in a modular and reusable function.
+
+Customizable: Modify request headers, URLs, and other properties easily.
+
+Transparent: Doesn't interfere with your existing code; works globally for all http/https requests.
+
+
+
+---
+
+Example Output
+
+For an outbound request to https://example.com/api/dev-only, you might see:
+
+Modified Request: GET https://example.com/api/mock
+Modified Headers: {"Authorization":"Bearer your-token","X-Custom-Header":"CustomValue"}
+
+This demonstrates that the URL and headers were successfully modified before the request was sent.
+
