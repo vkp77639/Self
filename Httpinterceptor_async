@@ -1,0 +1,184 @@
+If you want to keep all the logic (including the Bearer token fetching and request modification) within the middleware, here's how you can do it:
+
+
+---
+
+Complete Middleware Implementation
+
+File: requestInterceptor.js
+
+const https = require('https');
+
+// Middleware to intercept and modify HTTPS requests
+function setupInterceptor() {
+    const originalHttpsRequest = https.request;
+
+    https.request = async (...args) => {
+        const [options, callback] = args;
+
+        // Modify the request options
+        await modifyRequest(options);
+
+        // Proceed with the original request
+        return originalHttpsRequest.call(https, options, callback);
+    };
+
+    async function modifyRequest(options) {
+        // Asynchronously fetch the Bearer token
+        const token = await getBearerToken();
+
+        // Modify the URL
+        if (options.path.includes('/api/dev-only')) {
+            options.path = options.path.replace('/api/dev-only', '/api/mock');
+        }
+
+        // Add headers
+        options.headers = {
+            ...options.headers,
+            'Authorization': `Bearer ${token}`,
+            'X-Custom-Header': 'CustomValue',
+        };
+
+        console.log(`Modified Request: ${options.method} https://${options.hostname}${options.path}`);
+        console.log(`Modified Headers: ${JSON.stringify(options.headers)}`);
+    }
+
+    // Simulated asynchronous Bearer token fetch
+    async function getBearerToken() {
+        return new Promise((resolve) => {
+            setTimeout(() => {
+                resolve('your-async-bearer-token');
+            }, 100); // Simulate async delay
+        });
+    }
+}
+
+module.exports = setupInterceptor;
+
+
+---
+
+Integrating the Middleware
+
+File: server.js
+
+const express = require('express');
+const setupInterceptor = require('./requestInterceptor');
+
+const app = express();
+
+// Setup the request interceptor
+setupInterceptor();
+
+// Test endpoint to trigger an outbound HTTPS request
+app.get('/test', (req, res) => {
+    const https = require('https');
+
+    const options = {
+        hostname: 'example.com',
+        path: '/api/dev-only',
+        method: 'GET',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+    };
+
+    const request = https.request(options, (response) => {
+        let data = '';
+        response.on('data', (chunk) => {
+            data += chunk;
+        });
+        response.on('end', () => {
+            res.send(data);
+        });
+    });
+
+    request.on('error', (error) => {
+        res.status(500).send(error.message);
+    });
+
+    request.end();
+});
+
+// Start the server
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`);
+});
+
+
+---
+
+Key Points
+
+1. All Logic Inside Middleware:
+
+The middleware (setupInterceptor) contains:
+
+Logic to fetch the Bearer token asynchronously.
+
+Logic to modify the request URL and headers.
+
+
+
+
+2. Global Interception:
+
+The https.request function is overridden globally, ensuring that all outgoing requests are intercepted and modified.
+
+
+
+3. Clean Separation:
+
+The application code (server.js) is unaware of the interception logic, making it clean and modular.
+
+
+
+
+
+---
+
+Testing
+
+1. Send a Request:
+
+Hit the /test endpoint of your application.
+
+
+
+2. Observe Output: Console output should show the modified request details:
+
+Modified Request: GET https://example.com/api/mock
+Modified Headers: {"Authorization":"Bearer your-async-bearer-token","X-Custom-Header":"CustomValue"}
+
+
+3. Result:
+
+The request is sent with the updated URL and headers, including the asynchronously fetched Bearer token.
+
+
+
+
+
+---
+
+Advantages
+
+Encapsulation:
+
+All logic resides in the middleware, making it easier to maintain and extend.
+
+
+Async-Friendly:
+
+Supports asynchronous operations like fetching Bearer tokens or data from external sources.
+
+
+Plug-and-Play:
+
+The middleware can be added to any Node.js project without modifying existing application code.
+
+
+
+This approach ensures that the interceptor is self-contained and reusable while handling asynchronous tasks like token retrieval seamlessly.
+
