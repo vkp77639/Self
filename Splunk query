@@ -1,0 +1,44 @@
+<dashboard>
+    <label>User Activity Dashboard</label>
+
+    <!-- Dropdown to Select Index -->
+    <input type="dropdown" token="selected_index" searchWhenChanged="true">
+        <label>Select Index</label>
+        <default>main</default>
+        <choice value="main">Main</choice>
+        <choice value="other_index">Other Index</choice>
+    </input>
+
+    <!-- Input Box for User ID -->
+    <input type="text" token="userid" searchWhenChanged="true">
+        <label>Enter User ID</label>
+    </input>
+
+    <!-- Date-Time Picker for Time Range -->
+    <input type="time" token="time_range">
+        <label>Select Time Range</label>
+        <default>
+            <earliest>-24h</earliest>
+            <latest>now</latest>
+        </default>
+    </input>
+
+    <!-- Search Query Panel -->
+    <panel>
+        <title>User Logs</title>
+        <table>
+            <search>
+                <query>
+                index=$selected_index$ 
+                userid="$userid$"
+                earliest=$time_range.earliest$
+                latest=$time_range.latest$
+                | table _time, userid, message
+                </query>
+                <earliest>$time_range.earliest$</earliest>
+                <latest>$time_range.latest$</latest>
+            </search>
+        </table>
+    </panel>
+
+</dashboard>
